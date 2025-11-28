@@ -1,12 +1,39 @@
 
-import { View, Text, StyleSheet, SafeAreaView, Image, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
+import { useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const [userName, setUserName] = useState('Guardia');
+
+  useEffect(() => {
+    async function fetchUserName() {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        // Assuming the 'guards' table has a 'full_name' column and its 'id' matches 'auth.users.id'
+        const { data, error } = await supabase
+          .from('guards')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+
+        if (error) {
+          Alert.alert('Error fetching user data', error.message);
+        } else if (data) {
+          setUserName(data.full_name);
+        }
+      }
+    }
+
+    fetchUserName();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -20,7 +47,7 @@ export default function HomeScreen() {
               source={{ uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuCEv_Kqaz6dr9QDmDlD1FxqRBsg8Q6Kd_2zVkvF7u-x0bvlYYymYjziEc5VZjaDVAscWZeXhrxfT_mc226IcqIjk31JGbwNKdVH4kXuLODEZde9asLkSoaK6IelCxVIYHP0xxbqw6cpKdPy1n3h7GOhQ-UPqXN79aQiJtakKCxsPwvyXvNSTGuPe5ytQIMfmBO955lSFDHTcSrqgI4oNJJW_aBO2W76u4iR8s_U1_8LDnx28DOqQLQDI-DZP9PE3ZvoKYtfGVoLPHmp" }}
             />
           </View>
-          <Text style={styles.headerTitle}>Bienvenido, Guardia</Text>
+          <Text style={styles.headerTitle}>Bienvenido, {userName}</Text>
         </View>
 
         {/* Status Banner */}
@@ -78,7 +105,7 @@ export default function HomeScreen() {
             </View>
           <Text style={styles.navText}>Novedades</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/alertas')}>
             <View style={{...styles.navIconContainer, height: 32}}>
                 <MaterialIcons name="notifications-active" size={24} color="#92acc9" />
             </View>
@@ -93,7 +120,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#101922',
-    paddingTop: Constants.statusBarHeight,
   },
   scrollContent: {
     paddingBottom: 90, // Space for bottom nav

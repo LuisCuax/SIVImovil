@@ -1,15 +1,53 @@
-
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import Constants from 'expo-constants';
+import { useState, useEffect } from 'react';
+import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function NovedadesScreen() {
     const router = useRouter();
     const [selectedType, setSelectedType] = useState();
+    const [location, setLocation] = useState(null);
+    const [errorMsg, setErrorMsg] = useState(null);
+    const [image, setImage] = useState(null);
+
+    useEffect(() => {
+        (async () => {
+            let { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                setErrorMsg('Permission to access location was denied');
+                return;
+            }
+
+            let location = await Location.getCurrentPositionAsync({});
+            setLocation(location);
+        })();
+    }, []);
+
+    const pickImage = async () => {
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.All,
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 1,
+        });
+
+        if (!result.canceled) {
+            setImage(result.assets[0].uri);
+        }
+    };
+
+    let locationText = 'Waiting..';
+    if (errorMsg) {
+        locationText = errorMsg;
+    } else if (location) {
+        locationText = `Lat: ${location.coords.latitude.toFixed(3)}, Lon: ${location.coords.longitude.toFixed(3)}`;
+    }
+
 
     return (
         <SafeAreaView style={styles.container}>
@@ -52,7 +90,7 @@ export default function NovedadesScreen() {
                                 <MaterialIcons name="location-on" size={24} color="#92acc9" style={styles.locationIcon} />
                                 <TextInput
                                     style={styles.locationInput}
-                                    value="Lat: 19.432, Lon: -99.133"
+                                    value={locationText}
                                     editable={false}
                                 />
                             </View>
@@ -68,10 +106,12 @@ export default function NovedadesScreen() {
                             />
                         </View>
 
-                        <TouchableOpacity style={styles.attachButton}>
+                        <TouchableOpacity style={styles.attachButton} onPress={pickImage}>
                             <MaterialIcons name="photo-camera" size={20} color="#e5e7eb" />
                             <Text style={styles.attachButtonText}>Adjuntar Foto/Video</Text>
                         </TouchableOpacity>
+                        
+                        {image && <Image source={{ uri: image }} style={styles.previewImage} />}
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
@@ -88,7 +128,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#101922',
-        paddingTop: Constants.statusBarHeight,
     },
     header: {
         flexDirection: 'row',
@@ -183,6 +222,12 @@ const styles = StyleSheet.create({
         color: '#e5e7eb',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    previewImage: {
+        width: '100%',
+        height: 200,
+        borderRadius: 8,
+        marginTop: 16,
     },
     footer: {
         padding: 16,

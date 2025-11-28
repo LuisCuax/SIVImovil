@@ -2,10 +2,31 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { Image, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { supabase } from '../lib/supabase';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin() {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
+
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      router.push('/home');
+    }
+    setLoading(false);
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -26,12 +47,16 @@ export default function LoginScreen() {
 
             <View style={styles.form}>
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Usuario / ID</Text>
+                <Text style={styles.label}>Email</Text>
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Ingresa tu usuario o ID"
+                    placeholder="Ingresa tu email"
                     placeholderTextColor="#9ca3af"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
                   />
                   <MaterialIcons name="person" size={24} color="#9ca3af" style={styles.icon} />
                 </View>
@@ -45,6 +70,8 @@ export default function LoginScreen() {
                     placeholder="Ingresa tu contraseña"
                     placeholderTextColor="#9ca3af"
                     secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
                   />
                   <MaterialIcons name="lock" size={24} color="#9ca3af" style={styles.icon} />
                 </View>
@@ -52,8 +79,8 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.buttonContainer}>
-              <TouchableOpacity style={styles.button} onPress={() => router.push('/home')}>
-                <Text style={styles.buttonText}>Iniciar Sesión</Text>
+              <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+                <Text style={styles.buttonText}>{loading ? 'Iniciando...' : 'Iniciar Sesión'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -71,7 +98,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0f1923',
-    paddingTop: Constants.statusBarHeight
   },
   keyboardAvoidingView: {
     flex: 1,
