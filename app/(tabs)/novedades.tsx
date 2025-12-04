@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Image, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
@@ -6,7 +6,10 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
-import * as ImagePicker from 'expo-image-picker';
+import { launchImageLibraryAsync, launchCameraAsync, requestCameraPermissionsAsync } from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { supabase } from '../../lib/supabase';
+import { decode } from 'base64-arraybuffer';
 
 export default function NovedadesScreen() {
     const router = useRouter();
@@ -14,6 +17,8 @@ export default function NovedadesScreen() {
     const [location, setLocation] = useState(null);
     const [errorMsg, setErrorMsg] = useState(null);
     const [image, setImage] = useState(null);
+    const [description, setDescription] = useState('');
+    const [sending, setSending] = useState(false);
 
     useEffect(() => {
         (async () => {
@@ -28,9 +33,14 @@ export default function NovedadesScreen() {
         })();
     }, []);
 
-    const pickImage = async () => {
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.All,
+    const takePhoto = async () => {
+        const { status } = await requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+            alert('Sorry, we need camera permissions to make this work!');
+            return;
+        }
+
+        let result = await launchCameraAsync({
             allowsEditing: true,
             aspect: [4, 3],
             quality: 1,
@@ -40,6 +50,99 @@ export default function NovedadesScreen() {
             setImage(result.assets[0].uri);
         }
     };
+
+    const pickImage = async () => {
+        let result = await launchImageLibraryAsync({
+            mediaTypes: 'Images',
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 1,
+        });
+
+        if (!result.canceled) {
+            setImage(result.assets[0].uri);
+        }
+    };
+
+    const handleImageAttachment = () => {
+        Alert.alert(
+            "Adjuntar Imagen",
+            "Seleccione una opción",
+            [
+                {
+                    text: "Tomar Foto",
+                    onPress: takePhoto,
+                },
+                {
+                    text: "Elegir de la Galería",
+                    onPress: pickImage,
+                },
+                {
+                    text: "Cancelar",
+                    style: "cancel"
+                }
+            ]
+        );
+    };
+
+    const handleSendReport = async () => {
+        if (!selectedType || !location || !description) {
+            alert('Por favor, complete todos los campos.');
+            return;
+        }
+
+        setSending(true);
+
+        let imageUrl = null;
+        if (image) {
+            try {
+                const base64 = await FileSystem.readAsStringAsync(image, { encoding: 'base64' });
+                const fileExt = image.split('.').pop();
+                const fileName = `${Date.now()}.${fileExt}`;
+                const filePath = `${fileName}`;
+
+                const { data, error } = await supabase.storage
+                    .from('media')
+                    .upload(filePath, decode(base64), { contentType: `image/${fileExt}` });
+
+                if (error) {
+                    throw error;
+                }
+                
+                const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(filePath);
+                imageUrl = publicUrl;
+
+            } catch (error) {
+                console.error('Error uploading image:', error);
+                alert('Hubo un error al subir la imagen.');
+                setSending(false);
+                return;
+            }
+        }
+
+        const { error } = await supabase.from('reports').insert([
+            {
+                report_type: selectedType,
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                description: description,
+                media_url: imageUrl,
+            },
+        ]);
+
+        if (error) {
+            console.error('Error inserting report:', error);
+            alert('Hubo un error al enviar el reporte.');
+        } else {
+            alert('Reporte enviado con éxito.');
+            setSelectedType(null);
+            setImage(null);
+            setDescription('');
+            router.replace('../alertas');
+        }
+        setSending(false);
+    };
+
 
     let locationText = 'Waiting..';
     if (errorMsg) {
@@ -53,9 +156,6 @@ export default function NovedadesScreen() {
         <SafeAreaView style={styles.container}>
             <StatusBar style="light" />
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <MaterialIcons name="arrow-back" size={24} color="#92acc9" />
-                </TouchableOpacity>
                 <Text style={styles.headerTitle}>Registrar Novedad</Text>
             </View>
             <KeyboardAvoidingView
@@ -73,13 +173,13 @@ export default function NovedadesScreen() {
                                     style={styles.picker}
                                     dropdownIconColor="#92acc9"
                                 >
-                                    <Picker.Item label="Seleccionar tipo" value="null" color="#9ca3af"/>
-                                    <Picker.Item label="Actividad Sospechosa" value="sospechosa" />
-                                    <Picker.Item label="Puerta Abierta" value="puerta" />
-                                    <Picker.Item label="Falla de Equipo" value="equipo" />
-                                    <Picker.Item label="Accidente" value="accidente" />
-                                    <Picker.Item label="Vandalismo" value="vandalismo" />
-                                    <Picker.Item label="Intrusión" value="intrusion" />
+                                    <Picker.Item label="Seleccionar tipo" value={null} color="#9ca3af"/>
+                                    <Picker.Item label="Actividad Sospechosa" value="Actividad Sospechosa" />
+                                    <Picker.Item label="Puerta Abierta" value="Puerta Abierta" />
+                                    <Picker.Item label="Falla de Equipo" value="Falla de Equipo" />
+                                    <Picker.Item label="Accidente" value="Accidente" />
+                                    <Picker.Item label="Vandalismo" value="Vandalismo" />
+                                    <Picker.Item label="Intrusión" value="Intrusión" />
                                 </Picker>
                             </View>
                         </View>
@@ -103,10 +203,12 @@ export default function NovedadesScreen() {
                                 multiline
                                 placeholder="Sea claro y detallado. Incluya personas, objetos y acciones observadas."
                                 placeholderTextColor="#9ca3af"
+                                value={description}
+                                onChangeText={setDescription}
                             />
                         </View>
 
-                        <TouchableOpacity style={styles.attachButton} onPress={pickImage}>
+                        <TouchableOpacity style={styles.attachButton} onPress={handleImageAttachment}>
                             <MaterialIcons name="photo-camera" size={20} color="#e5e7eb" />
                             <Text style={styles.attachButtonText}>Adjuntar Foto/Video</Text>
                         </TouchableOpacity>
@@ -116,8 +218,12 @@ export default function NovedadesScreen() {
                 </ScrollView>
             </KeyboardAvoidingView>
             <View style={styles.footer}>
-                <TouchableOpacity style={styles.sendButton} onPress={() => router.back()}>
-                    <Text style={styles.sendButtonText}>Enviar Reporte</Text>
+                <TouchableOpacity style={styles.sendButton} onPress={handleSendReport} disabled={sending}>
+                    {sending ? (
+                        <ActivityIndicator color="#ffffff" />
+                    ) : (
+                        <Text style={styles.sendButtonText}>Enviar Reporte</Text>
+                    )}
                 </TouchableOpacity>
             </View>
         </SafeAreaView>
@@ -136,16 +242,9 @@ const styles = StyleSheet.create({
         paddingBottom: 8,
         borderBottomWidth: 1,
         borderBottomColor: '#233548',
-    },
-    backButton: {
-        position: 'absolute',
-        left: 16,
-        top: 16,
-        zIndex: 1,
-        padding: 5
+        justifyContent: 'center', // Center the title
     },
     headerTitle: {
-        flex: 1,
         color: '#ffffff',
         fontSize: 18,
         fontWeight: 'bold',
@@ -156,7 +255,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         padding: 16,
-        paddingBottom: 100, // Space for footer button
+        paddingBottom: 24, // Adjusted for tab bar, was 100
     },
     form: {
         gap: 24,

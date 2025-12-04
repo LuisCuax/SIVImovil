@@ -1,12 +1,13 @@
 import { Stack } from 'expo-router';
+import { RondinProvider } from '../contexts/RondinContext';
 
 export default function RootLayout() {
   return (
+    <RondinProvider>
       <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="home" options={{ headerShown: false }} />
-        <Stack.Screen name="novedades" options={{ headerShown: false }} />
-        <Stack.Screen name="alertas" options={{ headerShown: false }} />
       </Stack>
+    </RondinProvider>
   );
 }
