@@ -1,4 +1,4 @@
-import { View, StyleSheet, Alert, FlatList, Text, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Alert, FlatList, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useCallback } from 'react';
@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { useRondin } from '../../contexts/RondinContext';
 import { useFocusEffect } from '@react-navigation/native';
 import HomeHeader from '../../components/HomeHeader';
+import { MaterialIcons } from '@expo/vector-icons';
 
 export default function HomeScreen() {
   const [userName, setUserName] = useState('Guardia');
@@ -13,6 +14,7 @@ export default function HomeScreen() {
   const [pendingAlertsCount, setPendingAlertsCount] = useState(0);
   const [loadingAlerts, setLoadingAlerts] = useState(true);
   const [remainingTime, setRemainingTime] = useState('');
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
 
   useEffect(() => {
     async function fetchUserName() {
@@ -83,24 +85,34 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       <FlatList
-        data={history}
+        data={isHistoryExpanded ? history : []}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
-          <HomeHeader
-            userName={userName}
-            activeRound={activeRound}
-            remainingTime={remainingTime}
-            pendingAlertsCount={pendingAlertsCount}
-            loadingAlerts={loadingAlerts}
-          />
+          <>
+            <HomeHeader
+              userName={userName}
+              activeRound={activeRound}
+              remainingTime={remainingTime}
+              pendingAlertsCount={pendingAlertsCount}
+              loadingAlerts={loadingAlerts}
+            />
+            <View style={styles.historyContainer}>
+              <TouchableOpacity style={styles.titleContainer} onPress={() => setIsHistoryExpanded(!isHistoryExpanded)}>
+                <Text style={styles.title}>Historial de Rondines</Text>
+                <MaterialIcons name={isHistoryExpanded ? 'expand-less' : 'expand-more'} size={24} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+          </>
         }
         ListEmptyComponent={
-          loading ? (
-            <ActivityIndicator size="large" color="#ffffff" />
-          ) : (
-            <Text style={styles.emptyText}>No hay historial de rondines.</Text>
-          )
+          isHistoryExpanded ? (
+            loading ? (
+              <ActivityIndicator size="large" color="#ffffff" />
+            ) : (
+              <Text style={styles.emptyText}>No hay historial de rondines.</Text>
+            )
+          ) : null
         }
         contentContainerStyle={styles.scrollContent}
       />
@@ -131,5 +143,23 @@ const styles = StyleSheet.create({
     color: '#92acc9',
     textAlign: 'center',
     marginTop: 20,
+    paddingHorizontal: 16,
+  },
+  historyContainer: {
+    backgroundColor: '#192633',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ffffff',
   },
 });
